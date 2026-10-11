@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+oracledb
+cryptography
+requests

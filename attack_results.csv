@@ -1,0 +1,8 @@
+#,Attack,Layer,Expected,Actual,Failed checks,Result
+N1,Replay,Network,200 then 409,401 then 401,-,FAIL
+N2,Tamper in transit,Network,400,400,-,PASS
+N3,Forge hash + attacker's key,Network,401,401,-,PASS
+D1,Edit temperature only,Database,"TAMPERED; fails recomputed_matches_db_hash, signature_valid, recomputed_matches_chain_hash",ERROR: measurement POST returned HTTP 401,-,FAIL
+D2,Edit temperature + rewrite hashes,Database,"TAMPERED; fails signature_valid, recomputed_matches_chain_hash",ERROR: measurement POST returned HTTP 401,-,FAIL
+D3,Swap public key + re-sign,Database,"TAMPERED; fails recomputed_matches_chain_hash, public_key_matches_chain",ERROR: measurement POST returned HTTP 401,-,FAIL
+C1,Untouched measurement,Control,VERIFIED; all checks true,ERROR: measurement POST returned HTTP 401,-,FAIL

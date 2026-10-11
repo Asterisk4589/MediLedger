@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediLedger dashboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#eef2f0;--card:#fbfcfb;--ink:#0e2a2b;--mute:#5d7273;--line:#d3dedb;
+--ok:#1f7a4d;--okbg:#dcf0e5;--bad:#b3261e;--badbg:#f8dcd9;--fev:#a45f00;--fevbg:#fbe9cc;--flt:#4f5390;--fltbg:#e3e4f4;--band:#e1ece8}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1819;--card:#12292a;--ink:#e4efec;--mute:#8da6a4;--line:#254243;
+--ok:#5fd29a;--okbg:#14382a;--bad:#ff8a80;--badbg:#401a18;--fev:#f0b24d;--fevbg:#3d2b0c;--flt:#a9adf0;--fltbg:#26284a;--band:#173334}}
+:root[data-theme="dark"]{--bg:#0b1819;--card:#12292a;--ink:#e4efec;--mute:#8da6a4;--line:#254243;
+--ok:#5fd29a;--okbg:#14382a;--bad:#ff8a80;--badbg:#401a18;--fev:#f0b24d;--fevbg:#3d2b0c;--flt:#a9adf0;--fltbg:#26284a;--band:#173334}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px}
+h1{font-size:22px;margin:0;font-weight:600;letter-spacing:-.01em}
+.sub{color:var(--mute);font-size:13px}
+.bar{display:flex;gap:10px;align-items:center;font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mute)}
+.dot.on{background:var(--ok)}.dot.off{background:var(--bad)}
+button{font:inherit;font-size:13px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer}
+button:focus-visible,tr.row:focus-visible{outline:2px solid var(--flt);outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+.stat b{display:block;font:500 26px/1.2 "IBM Plex Mono",monospace}
+.stat span{font-size:13px;color:var(--mute)}
+.stat.t b{color:var(--bad)}.stat.v b{color:var(--ok)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+.panel h2{font-size:14px;font-weight:600;margin:0 0 8px}
+.scroll{overflow-x:auto}
+svg{display:block;width:100%;min-width:520px;height:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+th{text-align:left;font-size:12px;font-weight:500;color:var(--mute);padding:6px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.row{cursor:pointer}tr.row:hover td{background:var(--band)}
+.mono{font-family:"IBM Plex Mono",monospace;font-size:13px}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:500;white-space:nowrap}
+.VALID{background:var(--okbg);color:var(--ok)}.FEVER{background:var(--fevbg);color:var(--fev)}.SENSOR_FAULT{background:var(--fltbg);color:var(--flt)}
+.VERIFIED{background:var(--okbg);color:var(--ok)}.TAMPERED{background:var(--badbg);color:var(--bad)}.PENDING{background:var(--band);color:var(--mute)}
+.detail td{background:var(--band);padding:10px 14px}
+.chk{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 18px;margin-bottom:8px}
+.chk div{font-size:13px}.chk i{font-style:normal;font-weight:600}
+.chk .y i{color:var(--ok)}.chk .n i{color:var(--bad)}
+.hash{font:12px "IBM Plex Mono",monospace;color:var(--mute);word-break:break-all}
+.empty{padding:28px 10px;text-align:center;color:var(--mute)}
+.err{background:var(--badbg);color:var(--bad);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:14px;display:none}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--mute);margin-top:6px}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;background:var(--c)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div>
+    <h1>MediLedger</h1>
+    <div class="sub">Every reading is re-checked against its device signature and the blockchain.</div>
+  </div>
+  <div class="bar">
+    <span class="dot" id="dot"></span><span id="conn">Connecting…</span>
+    <button id="auto" aria-pressed="true">Auto-refresh: on</button>
+    <button id="now">Refresh now</button>
+  </div>
+</header>
+
+<div class="err" id="err"></div>
+
+<section class="stats" id="stats"></section>
+
+<section class="panel">
+  <h2>Temperature, oldest to newest</h2>
+  <div class="scroll"><svg id="chart" viewBox="0 0 900 220" role="img" aria-label="Temperature trend"></svg></div>
+  <div class="legend">
+    <span style="--c:var(--ok)">Verified</span>
+    <span style="--c:var(--bad)">Tampered</span>
+    <span style="--c:var(--mute)">Normal range 34–38 °C shaded</span>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>Latest 20 measurements</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Time</th><th>Temp</th><th>Reading</th><th>Integrity</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</section>
+</main>
+
+<script>
+const API = "http://localhost:8000";
+const LABEL = {recomputed_matches_db_hash:"Stored hash matches data",signature_valid:"Device signature valid",
+  recomputed_matches_chain_hash:"Blockchain hash matches data",public_key_matches_chain:"Device key matches blockchain"};
+const READ = {VALID:"Normal",FEVER:"Fever",SENSOR_FAULT:"Sensor fault"};
+const $ = id => document.getElementById(id);
+let timer = null, open = new Set(), cache = {};
+
+async function j(path){
+  const r = await fetch(API + path);
+  if(!r.ok) throw new Error(path + " returned " + r.status);
+  return r.json();
+}
+function fmtTime(s){
+  const d = new Date(s);
+  return isNaN(d) ? String(s) : d.toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function load(){
+  try{
+    const list = await j("/measurements");
+    const vs = await Promise.all(list.map(m => j("/verify/" + m.measurement_id).catch(() => ({status:"PENDING"}))));
+    list.forEach((m,i) => cache[m.measurement_id] = vs[i]);
+    $("err").style.display = "none";
+    $("dot").className = "dot on"; $("conn").textContent = "Live · " + new Date().toLocaleTimeString();
+    render(list);
+  }catch(e){
+    $("dot").className = "dot off"; $("conn").textContent = "Backend offline";
+    $("err").style.display = "block";
+    $("err").textContent = "Cannot reach " + API + ". Start the backend (uvicorn main:app --port 8000) and the chain (npx hardhat node), then refresh. " + e.message;
+  }
+}
+
+function render(list){
+  const asc = [...list].sort((a,b) => a.measurement_id - b.measurement_id);
+  const st = id => (cache[id] || {}).status || "PENDING";
+  const n = f => list.filter(f).length;
+  $("stats").innerHTML = [
+    ["Measurements", list.length, ""],
+    ["Verified", n(m => st(m.measurement_id) === "VERIFIED"), "v"],
+    ["Tampered", n(m => st(m.measurement_id) === "TAMPERED"), "t"],
+    ["Fever", n(m => m.sensor_status === "FEVER"), ""],
+    ["Sensor fault", n(m => m.sensor_status === "SENSOR_FAULT"), ""]
+  ].map(([l,v,c]) => `<div class="stat ${c}"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  drawChart(asc, st);
+
+  if(!list.length){ $("rows").innerHTML = `<tr><td colspan="5" class="empty">No readings yet. Run <span class="mono">python fake_device.py</span> to send some.</td></tr>`; return; }
+  $("rows").innerHTML = list.map(m => {
+    const id = m.measurement_id, v = cache[id] || {}, s = st(id), isOpen = open.has(id);
+    let h = `<tr class="row" tabindex="0" data-id="${id}" aria-expanded="${isOpen}">
+      <td class="mono">${id}</td><td>${esc(fmtTime(m.timestamp_val))}</td>
+      <td class="mono">${Number(m.temperature).toFixed(2)} °C</td>
+      <td><span class="pill ${esc(m.sensor_status)}">${READ[m.sensor_status] || esc(m.sensor_status)}</span></td>
+      <td><span class="pill ${s}">${s === "VERIFIED" ? "Verified" : s === "TAMPERED" ? "Tampered" : "Checking"}</span></td></tr>`;
+    if(isOpen){
+      const checks = v.checks ? Object.entries(v.checks).map(([k,ok]) =>
+        `<div class="${ok ? "y" : "n"}"><i>${ok ? "Pass" : "Fail"}</i> · ${LABEL[k] || k}</div>`).join("") : `<div>${esc(v.reason || "No details")}</div>`;
+      h += `<tr class="detail"><td colspan="5"><div class="chk">${checks}</div>
+        <div class="hash">Recomputed: ${esc(v.recomputed_hash || "-")}<br>Chain tx: ${esc(v.transaction_hash || "-")}</div></td></tr>`;
+    }
+    return h;
+  }).join("");
+}
+
+function drawChart(asc, st){
+  const W = 900, H = 220, L = 40, R = 14, T = 12, B = 22, lo = 10, hi = 45;
+  const y = t => T + (hi - t) / (hi - lo) * (H - T - B);
+  const x = i => asc.length < 2 ? (L + W - R) / 2 : L + i * (W - L - R) / (asc.length - 1);
+  let s = `<rect x="${L}" y="${y(38)}" width="${W-L-R}" height="${y(34)-y(38)}" fill="var(--band)"/>`;
+  [15,25,35,45].forEach(t => s += `<text x="${L-6}" y="${y(t)+4}" font-size="11" text-anchor="end" fill="var(--mute)">${t}</text>`);
+  [38,42].forEach(t => s += `<line x1="${L}" x2="${W-R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-dasharray="4 4"/>`);
+  s += `<text x="${W-R}" y="${y(42)-4}" font-size="11" text-anchor="end" fill="var(--mute)">42 °C: above this is a sensor fault</text>`;
+  if(asc.length > 1) s += `<polyline fill="none" stroke="var(--mute)" stroke-width="1.2" points="${asc.map((m,i) => x(i) + "," + y(Math.min(hi, Math.max(lo, m.temperature)))).join(" ")}"/>`;
+  asc.forEach((m,i) => {
+    const bad = st(m.measurement_id) === "TAMPERED";
+    s += `<circle cx="${x(i)}" cy="${y(Math.min(hi, Math.max(lo, m.temperature)))}" r="${bad ? 6 : 4.5}" fill="${bad ? "var(--bad)" : "var(--ok)"}"><title>#${m.measurement_id}: ${Number(m.temperature).toFixed(2)} °C</title></circle>`;
+  });
+  $("chart").innerHTML = s;
+}
+
+function toggle(tr){
+  const id = Number(tr.dataset.id);
+  open.has(id) ? open.delete(id) : open.add(id);
+  load();
+}
+$("rows").addEventListener("click", e => { const tr = e.target.closest("tr.row"); if(tr) toggle(tr); });
+$("rows").addEventListener("keydown", e => { if(e.key === "Enter" || e.key === " "){ const tr = e.target.closest("tr.row"); if(tr){ e.preventDefault(); toggle(tr); } } });
+$("now").onclick = load;
+$("auto").onclick = () => {
+  const on = $("auto").getAttribute("aria-pressed") !== "true";
+  $("auto").setAttribute("aria-pressed", on); $("auto").textContent = "Auto-refresh: " + (on ? "on" : "off");
+  clearInterval(timer); if(on) timer = setInterval(load, 5000);
+};
+load(); timer = setInterval(load, 5000);
+</script>
+</body>
+</html>
